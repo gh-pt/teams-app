@@ -13,6 +13,7 @@ export default function TopSideBar({ className }: extraProps) {
           alt="Team App Logo"
           width={35}
           height={35}
+          loading="eager"
         />
       </Link>
     </div>
