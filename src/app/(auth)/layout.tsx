@@ -1,7 +1,7 @@
-export default function AuthLayout({
+export default async function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <div>{children}</div>;
+  return <div className="bg-black">{children}</div>;
 }
