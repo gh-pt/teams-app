@@ -1,21 +1,20 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
 import { IoFilter } from "react-icons/io5";
 import { RiEditBoxLine } from "react-icons/ri";
 import { Tooltip } from "@heroui/tooltip";
 import { HiOutlineVideoCamera, HiMiniVideoCamera } from "react-icons/hi2";
 import { MdArrowDropDown } from "react-icons/md";
 import Image from "next/image";
-import { MainContainerSideBarProps } from "../interface";
+import { MainContainerSideBarProps } from "./interface";
 
 export default function MainContainerSideBar({
-  setIsMobileChatOpen,
   chats,
   error,
+  activeChatId,
+  onChatSelect,
+  setIsMobileChatOpen,
 }: MainContainerSideBarProps) {
-  const [activeUserId, setActiveUserId] = useState<string | null>(null);
-
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4 text-center">
@@ -84,10 +83,11 @@ export default function MainContainerSideBar({
                 key={chat.id}
                 onClick={() => {
                   setIsMobileChatOpen(true);
-                  setActiveUserId(chat.id);
+                  onChatSelect(chat);
+                  setIsMobileChatOpen(true);
                 }}
                 className={`group w-full h-[72px] flex items-center px-2 gap-2 cursor-pointer rounded-xl transition-colors ${
-                  activeUserId === chat.id
+                  activeChatId === chat.id
                     ? "bg-[#252525] text-white"
                     : "hover:bg-[#252525] text-gray-200"
                 }`}
@@ -105,7 +105,7 @@ export default function MainContainerSideBar({
                   <div className="flex items-center justify-between">
                     <span
                       className={`text-sm font-medium group-hover:text-white ${
-                        activeUserId === chat.id
+                        activeChatId === chat.id
                           ? "text-white"
                           : "text-gray-400"
                       }`}
@@ -114,17 +114,22 @@ export default function MainContainerSideBar({
                     </span>
                     <span
                       className={`text-xs group-hover:text-white ${
-                        activeUserId === chat.id
+                        activeChatId === chat.id
                           ? "text-white"
                           : "text-gray-400"
                       }`}
                     >
-                      {chat.lastMessage?.createdAt.toLocaleString()}
+                      {chat?.lastMessage?.createdAt && new Date(
+                        chat.lastMessage?.createdAt || ""
+                      ).toLocaleTimeString("en-US", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </span>
                   </div>
                   <span
                     className={`text-xs group-hover:text-white ${
-                      activeUserId === chat.id ? "text-white" : "text-gray-400"
+                      activeChatId === chat.id ? "text-white" : "text-gray-400"
                     }`}
                   >
                     {chat.lastMessage?.content || ""}

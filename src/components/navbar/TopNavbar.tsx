@@ -13,7 +13,6 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { signOut, useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { searchUsers } from "@/app/actions/userAction";
 
 interface UserData {
@@ -31,7 +30,6 @@ export default function TopNavbar() {
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
   const { data: session } = useSession();
 
   const avatar = session?.user?.image || "/logos/logo-transparent-1.png";
@@ -44,7 +42,6 @@ export default function TopNavbar() {
 
   // handle toggle sidebar
   const toggleSidebar = () => {
-    console.log("first");
     setIsSidebarOpen((prev) => !prev);
     window.dispatchEvent(new CustomEvent("sidebar-event", {}));
   };
@@ -56,6 +53,7 @@ export default function TopNavbar() {
 
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
 
+  // handle search
   const handleSearch = async (value: string) => {
     setQuery(value);
 
@@ -83,11 +81,19 @@ export default function TopNavbar() {
     }, 500);
   };
 
-  const handleUserSelect = (userId: string) => {
+  const handleUserSelect = (user: {
+    id: string;
+    name: string;
+    image?: string | null;
+  }) => {
     setQuery("");
     setUsers([]);
-    setIsSearchFocused(false);
-    router.push(`/chat/${userId}`);
+
+    window.dispatchEvent(
+      new CustomEvent("user-select", {
+        detail: user,
+      })
+    );
   };
 
   const handleClear = () => {
@@ -126,33 +132,6 @@ export default function TopNavbar() {
           </span>
         </button>
       </div>
-      {/* <div
-        className={`w-full h-[32px] flex items-center justify-center px-0.5`}
-      >
-        <div
-          className={`w-full max-w-[772px] h-full flex items-center transition-colors rounded-lg sm:outline-1 outline-[#292929]  ${
-            isSearchFocused ? "bg-[#292929]" : "sm:bg-[rgb(25,25,25)]"
-          }`}
-        >
-          <button
-            className="w-[10%] text-center"
-            onClick={() => setIsSearchFocused(true)}
-          >
-            <LuSearch size={13} className="ml-2 sm:ml-8" />
-          </button>
-          <input
-            ref={inputRef}
-            id="search-input"
-            type="text"
-            placeholder={isSearchFocused ? "Look for people" : "Search"}
-            className={`w-[90%] h-full font-normal outline-none pl-2 sm:block ${
-              isSearchFocused ? "block" : "hidden"
-            }`}
-            onFocus={() => setIsSearchFocused(true)}
-            onBlur={() => setIsSearchFocused(false)}
-          />
-        </div>
-      </div> */}
       <div className="w-full h-[32px] flex items-center justify-center px-0.5 relative">
         <div
           className={`w-full max-w-[772px] h-full flex items-center transition-colors rounded-lg sm:outline-1 outline-[#292929] ${
@@ -179,7 +158,11 @@ export default function TopNavbar() {
               isSearchFocused ? "block" : "hidden"
             }`}
             onFocus={() => setIsSearchFocused(true)}
-            onBlur={() => setIsSearchFocused(false)}
+            onBlur={() =>
+              setTimeout(() => {
+                setIsSearchFocused(false);
+              }, 500)
+            }
           />
           {query && (
             <button
@@ -222,8 +205,14 @@ export default function TopNavbar() {
                 {users.map((user) => (
                   <div
                     key={user.id}
-                    onClick={() => handleUserSelect(user.id)}
-                    className="flex items-center space-x-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors group"
+                    onClick={() =>
+                      handleUserSelect({
+                        id: user.id,
+                        name: user.userName,
+                        image: user.avatar,
+                      })
+                    }
+                    className="flex items-center space-x-3 px-4 py-2 hover:bg-[#3d3d3d] rounded-lg cursor-pointer transition-colors group"
                   >
                     <Image
                       src={user.avatar || "/default-avatar.png"}
@@ -233,10 +222,10 @@ export default function TopNavbar() {
                       height={40}
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-gray-900 truncate">
+                      <p className="font-medium text-sm truncate">
                         {user.userName}
                       </p>
-                      <p className="text-xs text-gray-500 truncate">
+                      <p className="text-xs text-gray-300 truncate">
                         {user.email}
                       </p>
                     </div>
@@ -268,7 +257,7 @@ export default function TopNavbar() {
       </div>
       <div
         className={`h-full flex items-center gap-2 justify-end pr-4 ${
-          isSearchFocused ? "hidden md:flex" : ""
+          isSearchFocused ? "hidden sm:flex" : ""
         }`}
       >
         <div className="w-[32px] h-[32px] rounded-md hover:cursor-pointer hover:bg-[#292929] hover:text-[#7F85F5]">
