@@ -6,6 +6,7 @@ export function getSocket() {
   if (!socket) {
     socket = io({
       path: "/socket",
+      transports: ["websocket"],
     });
   }
   return socket;

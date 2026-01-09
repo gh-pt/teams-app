@@ -4,7 +4,7 @@ import Image from "next/image";
 import { BsThreeDots } from "react-icons/bs";
 import { LuArrowLeft, LuSend } from "react-icons/lu";
 import { OpenedChat } from "./interface";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Message } from "@/generated/prisma";
 import { useSession } from "next-auth/react";
 import { getSocket } from "@/lib/socket-client";
@@ -15,6 +15,16 @@ type ChatInfoProps = {
   onBack?: () => void;
 };
 
+type TypingPayload = {
+  chatId: string;
+  userId: string;
+};
+
+type StopTypingPayload = {
+  chatId: string;
+  userId: string;
+};
+
 export default function ChatInfo({
   openedChat,
   messages,
@@ -23,12 +33,73 @@ export default function ChatInfo({
   const { data: session } = useSession();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [textareaValue, setTextareaValue] = useState("");
+  const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!openedChat) return;
+
+    const socket = getSocket();
+
+    socket.emit("join-chat", openedChat.chatId);
+
+    return () => {
+      socket.emit("leave-chat", openedChat.chatId);
+    };
+  }, [openedChat?.chatId]);
+
+  useEffect(() => {
+    if (!openedChat) return;
+
+    const socket = getSocket();
+
+    const handleTyping = ({ chatId, userId }: TypingPayload) => {
+      if (chatId !== openedChat.chatId) return;
+      if (userId === session?.user?.id) return;
+
+      setIsOtherUserTyping(true);
+    };
+
+    const handleStopTyping = ({ chatId, userId }: StopTypingPayload) => {
+      if (chatId !== openedChat.chatId) return;
+      if (userId === session?.user?.id) return;
+
+      setIsOtherUserTyping(false);
+    };
+
+    socket.on("user-typing", handleTyping);
+    socket.on("user-stop-typing", handleStopTyping);
+
+    return () => {
+      socket.off("user-typing", handleTyping);
+      socket.off("user-stop-typing", handleStopTyping);
+    };
+  }, [openedChat?.chatId, session?.user?.id]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const handleTextareaChange = (
     event: React.ChangeEvent<HTMLTextAreaElement>
   ) => {
     setTextareaValue(event.target.value);
     adjustTextareaHeight();
+
+    if (!openedChat) return;
+
+    const socket = getSocket();
+
+    socket.emit("typing", { chatId: openedChat.chatId });
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit("stop-typing", { chatId: openedChat.chatId });
+    }, 800);
   };
 
   const adjustTextareaHeight = () => {
@@ -50,9 +121,13 @@ export default function ChatInfo({
     });
   };
 
-  const handleSend = async () => {
-    if (!textareaValue.trim()) return;
+  const handleSend = () => {
+    if (!textareaValue.trim() || !openedChat) return;
+
     sendMessage(textareaValue);
+
+    const socket = getSocket();
+    socket.emit("stop-typing", { chatId: openedChat.chatId });
 
     setTextareaValue("");
   };
@@ -69,35 +144,39 @@ export default function ChatInfo({
   return (
     <div className="h-full w-full bg-[#292929] rounded-lg flex flex-col">
       {/* Header */}
-      <div className="h-[61px] flex items-center justify-between px-4 border-b border-[#3F3F3F]">
-        <div className="flex items-center gap-2">
-          {/* Back button (mobile only) */}
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="custom-sm:hidden p-1 rounded-md hover:bg-[#1F1F1F]"
-            >
-              <LuArrowLeft size={22} />
-            </button>
-          )}
+      <div className="h-[61px] flex flex-col justify-center items-center px-4 border-b border-[#3F3F3F]">
+        <div className="w-full flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="custom-sm:hidden p-1 rounded-md hover:bg-[#1F1F1F]"
+              >
+                <LuArrowLeft size={22} />
+              </button>
+            )}
 
-          <Image
-            src={openedChat.header.avatar || "/logos/logo-transparent-1.png"}
-            alt={openedChat.header.name}
-            width={32}
-            height={32}
-            className="rounded-full"
-          />
+            <Image
+              src={openedChat.header.avatar || "/logos/logo-transparent-1.png"}
+              alt={openedChat.header.name}
+              width={32}
+              height={32}
+              className="rounded-full"
+            />
 
-          <span className="font-bold">{openedChat.header.name}</span>
+            <span className="font-bold">{openedChat.header.name}</span>
+          </div>
+          <BsThreeDots className="cursor-pointer hover:text-[#7F85F5]" />
         </div>
-
-        <BsThreeDots className="cursor-pointer hover:text-[#7F85F5]" />
+        {/* Typing indicator */}
+        <div className="w-full h-3 px-4 text-[8px] text-gray-300 italic">
+          {isOtherUserTyping ? `${openedChat.header.name} is typing…` : ""}
+        </div>
       </div>
 
-      {/* Messages area */}
-      <div className="h-[calc(100%-61px)] w-full flex flex-col justify-between">
-        <div className="flex-1 p-4 overflow-y-auto space-y-2">
+      {/* Messages */}
+      <div className="h-[calc(100%-61px)] w-full flex flex-col">
+        <div className="flex-1 p-4 overflow-y-auto space-y-2 custom-scrollbar">
           {messages.map((msg) => (
             <div
               key={msg.id}
@@ -114,8 +193,10 @@ export default function ChatInfo({
               </small>
             </div>
           ))}
+          <div ref={bottomRef} />
         </div>
 
+        {/* Input */}
         <div className="ChatInput border-2 border-[#3F3F3F] rounded-lg flex items-center gap-2 px-2 py-1">
           <textarea
             ref={textareaRef}
@@ -123,7 +204,7 @@ export default function ChatInfo({
             onChange={handleTextareaChange}
             placeholder="Message"
             className="w-full border-none outline-none resize-none custom-scrollbar"
-          ></textarea>
+          />
           <button
             onClick={handleSend}
             className="p-2 hover:bg-[#1F1F1F] rounded-md"

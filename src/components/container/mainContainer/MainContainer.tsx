@@ -14,6 +14,7 @@ import ChatInfo from "./ChatInfo";
 import { ContainerProps } from "../interface";
 import { Message } from "@/generated/prisma";
 import { getSocket } from "@/lib/socket-client";
+import { normalizeMessage } from "@/lib/utils";
 
 export default function MainContainer({ className }: ContainerProps) {
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false);
@@ -120,27 +121,41 @@ export default function MainContainer({ className }: ContainerProps) {
     if (!openedChat) return;
 
     const socket = getSocket();
-    const room = `chat:${openedChat.chatId}`;
 
-    // join room
-    socket.emit("join-chat", openedChat.chatId);
-
-    // listen for messages
     const handleNewMessage = (message: Message) => {
+      // Update open chat messages
       if (message.chatId === openedChat.chatId) {
         setMessages((prev) => [...prev, message]);
       }
+
+      // Update chat list (lastMessage + ordering)
+      setChats((prevChats) => {
+        const normalizedLastMessage = normalizeMessage(message);
+
+        const updatedChats = prevChats.map((chat) =>
+          chat.id === message.chatId
+            ? {
+                ...chat,
+                lastMessage: normalizedLastMessage,
+                updatedAt: normalizedLastMessage.createdAt,
+              }
+            : chat
+        );
+
+        return updatedChats.sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
+      });
     };
 
     socket.on("new-message", handleNewMessage);
 
     return () => {
-      // leave room when switching chats
-      socket.emit("leave-chat", openedChat.chatId);
       socket.off("new-message", handleNewMessage);
     };
   }, [openedChat?.chatId]);
-  
+
   const fetchMessages = async (chatId: string) => {
     try {
       const response = await fetch(`/api/chat/${chatId}/messages`);
@@ -184,16 +199,10 @@ export default function MainContainer({ className }: ContainerProps) {
       />
       {/* Main Content */}
       <div
-        className={`main-content absolute custom-sm:static inset-0 flex-1 h-full transition-all duration-300 ease-in-out pr-2 pb-2 ${
+        className={`main-content absolute custom-sm:static inset-0 flex-1 h-full transition-all duration-300 ease-in-out sm:pr-2 sm:pb-2 ${
           isMobileChatOpen ? "left-0" : "left-full custom-sm:left-0"
         }`}
       >
-        {/* <button
-          onClick={() => setIsMobileChatOpen(false)}
-          className="absolute top-2 left-2 z-30 p-2 text-white  custom-sm:hidden"
-        >
-          <LuArrowLeft size={24} />
-        </button> */}
         <ChatInfo
           openedChat={openedChat}
           messages={messages}
