@@ -91,7 +91,6 @@ export default function MainContainer({ className }: ContainerProps) {
 
         return [normalizedChat, ...prev];
       });
-      setActiveChatId(chat.id);
     };
 
     socket.on("chat-created", handleChatCreated);
