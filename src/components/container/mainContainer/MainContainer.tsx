@@ -1,20 +1,23 @@
 "use client";
 
 import {
-  Chat,
+  ChatUI,
+  ChatParticipantWithUser,
   OpenedChat,
   OpenedChatFromList,
   OpenedChatFromSearch,
+  PrismaChat,
 } from "./interface";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import MainContainerSideBar from "./MainContainerSideBar";
 import { useSession } from "next-auth/react";
-import { toast } from "sonner";
-import ChatInfo from "./ChatInfo";
+import ChatInfo, { ChatFetchResult } from "./ChatInfo";
 import { ContainerProps } from "../interface";
-import { Message } from "@/generated/prisma";
+import { ChatParticipant, Message } from "@/generated/prisma";
 import { getSocket } from "@/lib/socket-client";
 import { normalizeMessage } from "@/lib/utils";
+
+type MainView = "CHAT" | "CREATE_CHAT";
 
 export default function MainContainer({ className }: ContainerProps) {
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false);
@@ -22,22 +25,89 @@ export default function MainContainer({ className }: ContainerProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const { data: session, status } = useSession();
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [chats, setChats] = useState<ChatUI[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [mainView, setMainView] = useState<MainView>("CHAT");
+  const [participants, setParticipants] = useState<string[] | null>(null);
+  const [chatParticipantsMap, setChatParticipantsMap] = useState<
+    Record<string, Record<string, string>>
+  >({});
+  const socket = useMemo(() => getSocket(), []);
 
+  // Map Participants
+  const mapParticipants = (participants?: ChatParticipantWithUser[]) => {
+    if (!participants?.length) return {};
+    return participants.reduce((acc, p) => {
+      acc[p.userId] = p.user?.userName || "";
+      return acc;
+    }, {} as Record<string, string>);
+  };
+
+  // Normalize Chat for List
+  const normalizeChatForList = useCallback(
+    (chat: PrismaChat): ChatUI => ({
+      id: chat.id,
+      chatName:
+        chat.chatType === "GROUP"
+          ? chat.groupName
+          : chat.participants.find((p) => p.userId !== session?.user?.id)?.user
+              ?.userName ?? "Unknown",
+      avatar:
+        chat.chatType === "GROUP"
+          ? chat.groupAvatar
+          : chat.participants.find((p) => p.userId !== session?.user?.id)?.user
+              ?.avatar ?? null,
+      isGroup: chat.chatType === "GROUP",
+      lastMessage: null,
+      updatedAt: chat.createdAt,
+      messages: [],
+      createdAt: chat.createdAt,
+      participants: chat.participants,
+    }),
+    [session?.user?.id]
+  );
+
+  // join user
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    socket.emit("join-user");
+
+    return () => {
+      socket.off("chat-created");
+    };
+  }, [session?.user?.id]);
+
+  // handle new chat created
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const handleChatCreated = (chat: PrismaChat) => {
+      setChats((prev) => {
+        if (prev.some((c) => c.id === chat.id)) {
+          return prev;
+        }
+        const normalizedChat = normalizeChatForList(chat);
+
+        return [normalizedChat, ...prev];
+      });
+      setActiveChatId(chat.id);
+    };
+
+    socket.on("chat-created", handleChatCreated);
+
+    return () => {
+      socket.off("chat-created", handleChatCreated);
+    };
+  }, [session?.user?.id, normalizeChatForList]);
+
+  // Fetch User's Chats
   useEffect(() => {
     const fetchChats = async () => {
-      if (status === "loading") return;
-      if (!session?.user?.id) {
-        setLoading(false);
-        return;
-      }
+      if (!session?.user?.id) return;
 
       try {
-        setLoading(true);
         setError(null);
-
         const response = await fetch(`/api/chat/user/${session?.user?.id}`, {
           method: "GET",
           headers: {
@@ -51,20 +121,41 @@ export default function MainContainer({ className }: ContainerProps) {
           throw new Error(result.error || "Failed to fetch chats");
         }
 
-        console.log(result.data);
         setChats(result.data);
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : "Failed to load chats";
         setError(errorMessage);
-      } finally {
-        setLoading(false);
       }
     };
 
     fetchChats();
   }, [session?.user?.id, status]);
 
+  // Create Chat
+  async function createChat(data: string[]) {
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          participants: data,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to create chat");
+      }
+
+      return result;
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  // handle User Select
   useEffect(() => {
     const handleUserSelect = async (
       event: CustomEvent<{ id: string; name: string; image?: string }>
@@ -73,16 +164,7 @@ export default function MainContainer({ className }: ContainerProps) {
       const user = event.detail;
 
       try {
-        const response = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            participants: [session.user.id, user.id],
-          }),
-        });
-
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error);
+        const result = await createChat([session.user.id, user.id]);
 
         const opened: OpenedChatFromSearch = {
           source: "SEARCH",
@@ -96,12 +178,24 @@ export default function MainContainer({ className }: ContainerProps) {
         };
 
         setOpenedChat(opened);
+        setMainView("CHAT");
         setActiveChatId(result.data.id);
         setMessages(result.data?.messages || []);
-        // await fetchMessages(result.data.id);
         setIsMobileChatOpen(true);
+        setChatParticipantsMap((prev) => ({
+          ...prev,
+          [result.data.id]: mapParticipants(result.data.participants),
+        }));
+        setChats((prevChats) => {
+          const exists = prevChats.some((c) => c.id === result.data.id);
+          if (exists) return prevChats;
+
+          const newChatItem = normalizeChatForList(result.data);
+
+          return [newChatItem, ...prevChats];
+        });
       } catch (err) {
-        toast.error("Failed to open chat");
+        console.log(err);
       }
     };
 
@@ -117,46 +211,65 @@ export default function MainContainer({ className }: ContainerProps) {
       );
   }, [session?.user?.id]);
 
+  // handle Opened Chat
   useEffect(() => {
-    if (!openedChat) return;
-
-    const socket = getSocket();
+    if (!activeChatId) return;
 
     const handleNewMessage = (message: Message) => {
-      // Update open chat messages
-      if (message.chatId === openedChat.chatId) {
-        setMessages((prev) => [...prev, message]);
-      }
+      console.log("new-message");
+      setMessages((prev) =>
+        message.chatId === activeChatId ? [...prev, message] : prev
+      );
 
-      // Update chat list (lastMessage + ordering)
       setChats((prevChats) => {
         const normalizedLastMessage = normalizeMessage(message);
 
-        const updatedChats = prevChats.map((chat) =>
-          chat.id === message.chatId
-            ? {
-                ...chat,
-                lastMessage: normalizedLastMessage,
-                updatedAt: normalizedLastMessage.createdAt,
-              }
-            : chat
-        );
-
-        return updatedChats.sort(
-          (a, b) =>
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-        );
+        return prevChats
+          .map((chat) =>
+            chat.id === message.chatId
+              ? {
+                  ...chat,
+                  lastMessage: normalizedLastMessage,
+                  updatedAt: normalizedLastMessage.createdAt,
+                }
+              : chat
+          )
+          .sort(
+            (a, b) =>
+              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          );
       });
     };
 
     socket.on("new-message", handleNewMessage);
-
     return () => {
       socket.off("new-message", handleNewMessage);
     };
-  }, [openedChat?.chatId]);
+  }, [activeChatId]);
 
-  const fetchMessages = async (chatId: string) => {
+  // handle Create Chat mode
+  useEffect(() => {
+    const handleCreateChat = (event: CustomEvent<{ userId: string }>) => {
+      setOpenedChat(null);
+      setMessages([]);
+      setIsMobileChatOpen(true);
+      setMainView("CREATE_CHAT");
+    };
+
+    window.addEventListener(
+      "open-create-chat",
+      handleCreateChat as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "open-create-chat",
+        handleCreateChat as EventListener
+      );
+    };
+  }, []);
+
+  const fetchMessages = useCallback(async (chatId: string) => {
     try {
       const response = await fetch(`/api/chat/${chatId}/messages`);
       const result = await response.json();
@@ -167,11 +280,49 @@ export default function MainContainer({ className }: ContainerProps) {
 
       setMessages(result.data);
     } catch (err) {
-      toast.error("Failed to load messages");
+      console.log(err);
     }
-  };
+  }, []);
 
-  const handleChatSelect = async (chat: Chat) => {
+  // handle Chat Select
+  const handleChatSelect = useCallback(
+    async (chat: ChatUI) => {
+      const opened: OpenedChatFromList = {
+        source: "CHAT_LIST",
+        chatId: chat.id,
+        header: {
+          name: chat.chatName,
+          avatar: chat.avatar,
+          isGroup: chat.isGroup,
+        },
+      };
+
+      setOpenedChat(opened);
+      setMainView("CHAT");
+      setActiveChatId(chat.id);
+      await fetchMessages(chat.id);
+      setIsMobileChatOpen(true);
+      if (chat.participants?.length) {
+        setChatParticipantsMap((prev) => ({
+          ...prev,
+          [chat.id]: mapParticipants(chat.participants),
+        }));
+      }
+    },
+    [fetchMessages]
+  );
+
+  const handleChatFetched = (result: ChatFetchResult) => {
+    if (result.type === "NOT_FOUND") {
+      setOpenedChat(null);
+      setMessages([]);
+      setMainView("CREATE_CHAT");
+      setParticipants(result.participants);
+      return;
+    }
+
+    const chat = result.chat;
+
     const opened: OpenedChatFromList = {
       source: "CHAT_LIST",
       chatId: chat.id,
@@ -183,9 +334,60 @@ export default function MainContainer({ className }: ContainerProps) {
     };
 
     setOpenedChat(opened);
+    setMessages((chat.messages as unknown as Message[]) || []);
+    setMainView("CREATE_CHAT");
     setActiveChatId(chat.id);
-    await fetchMessages(chat.id);
     setIsMobileChatOpen(true);
+    setChatParticipantsMap((prev) => ({
+      ...prev,
+      [chat.id]: mapParticipants(chat.participants),
+    }));
+    setParticipants(chat.participants.map((p) => p.userId));
+  };
+
+  const handleStartChatting = async (participants: string[]) => {
+    const result = await createChat(participants);
+    const chat = result.data;
+
+    const isGroup = chat.chatType === "GROUP";
+
+    let chatName: string;
+    let avatar: string | null;
+
+    if (isGroup) {
+      chatName = chat.groupName || "Group Chat";
+      avatar = chat.groupAvatar || null;
+    } else {
+      const otherParticipant = chat.participants.find(
+        (p: ChatParticipant) => p.userId !== session?.user?.id
+      );
+      chatName = otherParticipant?.user?.userName || "Unknown User";
+      avatar = otherParticipant?.user?.avatar || null;
+    }
+
+    const opened: OpenedChatFromList = {
+      source: "CHAT_LIST",
+      chatId: chat.id,
+      header: {
+        name: chatName,
+        avatar,
+        isGroup,
+      },
+    };
+
+    setOpenedChat(opened);
+    setMainView("CHAT");
+    setActiveChatId(chat.id);
+    setIsMobileChatOpen(true);
+    // update chats list
+    setChats((prevChats) => {
+      const exists = prevChats.some((c) => c.id === chat.id);
+      if (exists) return prevChats;
+
+      const newChatItem = normalizeChatForList(chat);
+
+      return [newChatItem, ...prevChats];
+    });
   };
 
   return (
@@ -204,9 +406,17 @@ export default function MainContainer({ className }: ContainerProps) {
         }`}
       >
         <ChatInfo
+          mode={mainView}
           openedChat={openedChat}
           messages={messages}
-          onBack={() => setIsMobileChatOpen(false)}
+          onBack={() => {
+            setMainView("CHAT");
+            setIsMobileChatOpen(false);
+          }}
+          onChatFetched={handleChatFetched}
+          participants={participants}
+          onStartChatting={handleStartChatting}
+          chatParticipants={chatParticipantsMap[openedChat?.chatId || ""] ?? {}}
         />
       </div>
     </main>

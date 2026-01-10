@@ -15,7 +15,7 @@ import {
 import { signOut, useSession } from "next-auth/react";
 import { searchUsers } from "@/app/actions/userAction";
 
-interface UserData {
+export interface UserData {
   id: string;
   userName: string;
   email: string;
@@ -145,7 +145,7 @@ export default function TopNavbar() {
               inputRef.current?.focus();
             }}
           >
-            <LuSearch size={13} className="ml-2 sm:ml-8" />
+            <LuSearch size={13} className="ml-2 md:ml-8" />
           </button>
           <input
             ref={inputRef}

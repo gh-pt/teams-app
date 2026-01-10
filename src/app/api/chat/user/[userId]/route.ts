@@ -18,6 +18,18 @@ interface ChatResponse {
     } | null;
   } | null;
   updatedAt: Date;
+  participants: {
+    id: string;
+    userId: string;
+    chatId: string;
+    joinedAt: Date;
+    user: {
+      id: string;
+      userName: string;
+      email: string;
+      avatar: string | null;
+    } | null;
+  }[];
 }
 
 // Get all chats for a user
@@ -81,8 +93,8 @@ export async function GET(
       let avatar: string | null;
 
       if (isGroup) {
-        chatName = chat.groupName || "Group Chat"; 
-        avatar = chat.groupAvatar || null; 
+        chatName = chat.groupName || "Group Chat";
+        avatar = chat.groupAvatar || null;
       } else {
         const otherParticipant = chat.participants.find(
           (participant) => participant.userId !== userId
@@ -113,6 +125,7 @@ export async function GET(
             }
           : null,
         updatedAt: chat.updatedAt,
+        participants: chat.participants,
       };
     });
 

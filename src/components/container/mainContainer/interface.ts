@@ -1,13 +1,14 @@
-interface User {
+import { Chat, ChatParticipant } from "@/generated/prisma";
+
+export interface User {
   id: string;
   userName: string;
   email: string;
   avatar: string | null;
 }
 
-interface Participant {
-  userId: string;
-  user: User;
+export interface ChatParticipantWithUser extends ChatParticipant {
+  user: User | null;
 }
 
 interface Message {
@@ -17,23 +18,23 @@ interface Message {
   senderId: string;
 }
 
-export interface Chat {
+export interface ChatUI {
   id: string;
-  chatName: string;
+  chatName: string | null;
   avatar: string | null;
   isGroup: boolean;
   lastMessage: Message | null;
-  createdAt: string;
-  updatedAt: string;
-  messages?: Message[];
-  participants?: Participant[];
+  updatedAt: Date | string;
+  messages: Message[];
+  createdAt: Date | string;
+  participants: ChatParticipantWithUser[];
 }
 
 export interface MainContainerSideBarProps {
-  chats: Chat[];
+  chats: ChatUI[];
   error: string | null;
   activeChatId: string | null;
-  onChatSelect: (chat: Chat) => void;
+  onChatSelect: (chat: ChatUI) => void;
   setIsMobileChatOpen: (open: boolean) => void;
 }
 
@@ -43,12 +44,16 @@ export interface MainContainerSideBarProps {
 //   image?: string | null;
 // };
 
+export interface PrismaChat extends Chat {
+  participants: ChatParticipantWithUser[];
+  messages?: Message[];
+}
+
 interface ChatHeader {
-  name: string;
+  name: string | null;
   avatar?: string | null;
   isGroup: boolean;
 }
-
 
 interface BaseOpenedChat {
   chatId: string;

@@ -8,6 +8,12 @@ import prisma from "./src/lib/prisma";
 
 const dev = process.env.NODE_ENV !== "production";
 
+declare global {
+  var io: Server | undefined;
+}
+
+export {};
+
 const app = next({ dev });
 const handle = app.getRequestHandler();
 
@@ -20,6 +26,8 @@ app.prepare().then(() => {
     path: "/socket",
     cors: { origin: "*" },
   });
+
+  global.io = io;
 
   // Socket auth
   io.use(async (socket, next) => {
@@ -38,6 +46,13 @@ app.prepare().then(() => {
 
   io.on("connection", (socket) => {
     console.log("User connected:", socket.data.userId);
+
+    // Join user-level room (for notifications)
+    socket.on("join-user", () => {
+      const userId = socket.data.userId;
+      socket.join(`user:${userId}`);
+      console.log(`User ${userId} joined user room`);
+    });
 
     // Join chat room
     socket.on("join-chat", (chatId: string) => {

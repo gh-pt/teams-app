@@ -7,14 +7,24 @@ import { HiOutlineVideoCamera, HiMiniVideoCamera } from "react-icons/hi2";
 import { MdArrowDropDown } from "react-icons/md";
 import Image from "next/image";
 import { MainContainerSideBarProps } from "./interface";
+import { useSession } from "next-auth/react";
+import { memo } from "react";
 
-export default function MainContainerSideBar({
+export default memo(function MainContainerSideBar({
   chats,
   error,
   activeChatId,
   onChatSelect,
   setIsMobileChatOpen,
 }: MainContainerSideBarProps) {
+  const session = useSession();
+
+  function handleCreateChat(userId: string) {
+    window.dispatchEvent(
+      new CustomEvent("open-create-chat", { detail: { userId } })
+    );
+  }
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4 text-center">
@@ -63,6 +73,7 @@ export default function MainContainerSideBar({
               <RiEditBoxLine
                 size={18}
                 className="group-hover:text-[#7F85F5] transition-colors duration-300"
+                onClick={() => handleCreateChat(session?.data?.user?.id || "")}
               />
             </button>
           </Tooltip>
@@ -94,8 +105,8 @@ export default function MainContainerSideBar({
               >
                 <div className="relative w-[44px] h-[44px] flex items-center justify-center">
                   <Image
-                    src={chat.avatar || "/avatar.png"}
-                    alt={chat.chatName}
+                    src={chat.avatar || "/logos/logo-transparent-1.png"}
+                    alt={chat.chatName || "Image-alt"}
                     className="rounded-full object-cover"
                     width={44}
                     height={44}
@@ -119,12 +130,13 @@ export default function MainContainerSideBar({
                           : "text-gray-400"
                       }`}
                     >
-                      {chat?.lastMessage?.createdAt && new Date(
-                        chat.lastMessage?.createdAt || ""
-                      ).toLocaleTimeString("en-US", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {chat?.lastMessage?.createdAt &&
+                        new Date(
+                          chat.lastMessage?.createdAt || ""
+                        ).toLocaleTimeString("en-US", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                     </span>
                   </div>
                   <span
@@ -146,4 +158,4 @@ export default function MainContainerSideBar({
       </div>
     </div>
   );
-}
+});
