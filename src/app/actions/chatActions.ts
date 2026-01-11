@@ -1,6 +1,6 @@
 "use server";
 
-import { Chat } from "@/generated/prisma";
+import { Chat } from "@/generated/prisma/client";
 import prisma from "@/lib/prisma";
 import { ActionResult } from "@/types";
 

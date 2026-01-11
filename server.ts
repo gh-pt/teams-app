@@ -98,13 +98,79 @@ app.prepare().then(() => {
             content,
             contentType: "TEXT",
           },
+          include: {
+            chat: {
+              include: {
+                participants: true,
+              },
+            },
+          },
+        });
+
+        await prisma.chatParticipant.updateMany({
+          where: {
+            chatId,
+            userId: { not: senderId },
+          },
+          data: {
+            unreadCount: { increment: 1 },
+          },
         });
 
         // Emit to everyone in the room
         io.to(`chat:${chatId}`).emit("new-message", message);
+
+        // 🔹 Emit sidebar notification to ALL other users
+        message.chat.participants
+          .filter((p) => p.userId !== senderId)
+          .forEach((p) => {
+            io.to(`user:${p.userId}`).emit("chat-updated", {
+              chatId,
+              lastMessage: message,
+              incrementUnread: true,
+            });
+          });
       } catch (err) {
         console.error("send-message error:", err);
       }
+    });
+
+    // Mark as read
+    socket.on("mark-as-read", async ({ chatId }) => {
+      const userId = socket.data.userId;
+
+      // 1️⃣ Update unread messages
+      await prisma.message.updateMany({
+        where: {
+          chatId,
+          senderId: { not: userId },
+          readAt: null,
+        },
+        data: {
+          readAt: new Date(),
+        },
+      });
+
+      // 2️⃣ Reset unreadCount
+      await prisma.chatParticipant.update({
+        where: {
+          userId_chatId: {
+            userId,
+            chatId,
+          },
+        },
+        data: {
+          unreadCount: 0,
+          lastReadAt: new Date(),
+        },
+      });
+
+      // 3️⃣ Notify others (optional – read receipts)
+      socket.to(`chat:${chatId}`).emit("messages-read", {
+        chatId,
+        readerId: userId,
+        readAt: new Date().toISOString(),
+      });
     });
 
     // Typing

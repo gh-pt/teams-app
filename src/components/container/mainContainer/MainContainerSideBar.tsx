@@ -139,13 +139,24 @@ export default memo(function MainContainerSideBar({
                         })}
                     </span>
                   </div>
-                  <span
-                    className={`text-xs group-hover:text-white ${
-                      activeChatId === chat.id ? "text-white" : "text-gray-400"
-                    }`}
-                  >
-                    {chat.lastMessage?.content || ""}
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`text-xs group-hover:text-white ${
+                        activeChatId === chat.id
+                          ? "text-white"
+                          : "text-gray-400"
+                      }`}
+                    >
+                      {chat.lastMessage?.content || ""}
+                    </span>
+                    <span>
+                      {(chat.unreadCount ?? 0) > 0 && (
+                        <span className="bg-[#7F85F5] text-white text-xs px-2 py-1 rounded-full">
+                          {chat.unreadCount}
+                        </span>
+                      )}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))

@@ -1,4 +1,5 @@
-import { Chat, ChatParticipant } from "@/generated/prisma";
+import { Chat, ChatParticipant } from "@/generated/prisma/client";
+
 
 export interface User {
   id: string;
@@ -23,6 +24,7 @@ export interface ChatUI {
   chatName: string | null;
   avatar: string | null;
   isGroup: boolean;
+  unreadCount: number | null;
   lastMessage: Message | null;
   updatedAt: Date | string;
   messages: Message[];
@@ -37,12 +39,6 @@ export interface MainContainerSideBarProps {
   onChatSelect: (chat: ChatUI) => void;
   setIsMobileChatOpen: (open: boolean) => void;
 }
-
-// export type SelectedUser = {
-//   id: string;
-//   name: string;
-//   image?: string | null;
-// };
 
 export interface PrismaChat extends Chat {
   participants: ChatParticipantWithUser[];
@@ -60,16 +56,12 @@ interface BaseOpenedChat {
   header: ChatHeader;
 }
 
-// Chat opened from search - includes userId for new chat creation
 export interface OpenedChatFromSearch extends BaseOpenedChat {
   source: "SEARCH";
   userId: string;
 }
 
-// Chat opened from chat list - existing chat
 export interface OpenedChatFromList extends BaseOpenedChat {
   source: "CHAT_LIST";
 }
-
-// Union type that handles both cases
 export type OpenedChat = OpenedChatFromSearch | OpenedChatFromList;

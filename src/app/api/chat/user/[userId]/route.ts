@@ -125,6 +125,7 @@ export async function GET(
             }
           : null,
         updatedAt: chat.updatedAt,
+        unreadCount: chat.participants.find((p) => p.userId === userId)?.unreadCount,
         participants: chat.participants,
       };
     });

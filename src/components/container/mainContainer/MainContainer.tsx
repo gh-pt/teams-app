@@ -11,11 +11,12 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import MainContainerSideBar from "./MainContainerSideBar";
 import { useSession } from "next-auth/react";
-import ChatInfo, { ChatFetchResult } from "./ChatInfo";
 import { ContainerProps } from "../interface";
-import { ChatParticipant, Message } from "@/generated/prisma";
 import { getSocket } from "@/lib/socket-client";
 import { normalizeMessage } from "@/lib/utils";
+import ChatInfo from "./chatSection/ChatInfo";
+import { ChatFetchResult } from "./chatSection/types";
+import { ChatParticipant, Message } from "@/generated/prisma/client";
 
 type MainView = "CHAT" | "CREATE_CHAT";
 
@@ -35,13 +36,16 @@ export default function MainContainer({ className }: ContainerProps) {
   const socket = useMemo(() => getSocket(), []);
 
   // Map Participants
-  const mapParticipants = (participants?: ChatParticipantWithUser[]) => {
-    if (!participants?.length) return {};
-    return participants.reduce((acc, p) => {
-      acc[p.userId] = p.user?.userName || "";
-      return acc;
-    }, {} as Record<string, string>);
-  };
+  const mapParticipants = useCallback(
+    (participants?: ChatParticipantWithUser[]) => {
+      if (!participants?.length) return {};
+      return participants.reduce((acc, p) => {
+        acc[p.userId] = p.user?.userName || "";
+        return acc;
+      }, {} as Record<string, string>);
+    },
+    []
+  );
 
   // Normalize Chat for List
   const normalizeChatForList = useCallback(
@@ -60,6 +64,9 @@ export default function MainContainer({ className }: ContainerProps) {
       isGroup: chat.chatType === "GROUP",
       lastMessage: null,
       updatedAt: chat.createdAt,
+      unreadCount:
+        chat.participants.find((p) => p.userId === session?.user?.id)
+          ?.unreadCount || 0,
       messages: [],
       createdAt: chat.createdAt,
       participants: chat.participants,
@@ -76,7 +83,7 @@ export default function MainContainer({ className }: ContainerProps) {
     return () => {
       socket.off("chat-created");
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, socket]);
 
   // handle new chat created
   useEffect(() => {
@@ -98,7 +105,7 @@ export default function MainContainer({ className }: ContainerProps) {
     return () => {
       socket.off("chat-created", handleChatCreated);
     };
-  }, [session?.user?.id, normalizeChatForList]);
+  }, [session?.user?.id, normalizeChatForList, socket]);
 
   // Fetch User's Chats
   useEffect(() => {
@@ -208,43 +215,170 @@ export default function MainContainer({ className }: ContainerProps) {
         "user-select",
         handleUserSelect as unknown as EventListener
       );
-  }, [session?.user?.id]);
+  }, [session?.user?.id, normalizeChatForList, mapParticipants]);
 
-  // handle Opened Chat
+
+  // useEffect(() => {
+  //   if (!activeChatId) return;
+
+  //   const handleNewMessage = (message: Message) => {
+  //     console.log("new-message");
+  //     // setMessages((prev) =>
+  //     //   message.chatId === activeChatId ? [...prev, message] : prev
+  //     // );
+
+  //     setMessages((prev) => [...prev, message]);
+
+  //     setChats((prevChats) => {
+  //       const normalizedLastMessage = normalizeMessage(message);
+
+  //       return prevChats
+  //         .map((chat) =>
+  //           chat.id === message.chatId
+  //             ? {
+  //                 ...chat,
+  //                 lastMessage: normalizedLastMessage,
+  //                 updatedAt: normalizedLastMessage.createdAt,
+  //               }
+  //             : chat
+  //         )
+  //         .sort(
+  //           (a, b) =>
+  //             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  //         );
+  //     });
+  //   };
+
+  //   socket.on("new-message", handleNewMessage);
+  //   return () => {
+  //     socket.off("new-message", handleNewMessage);
+  //   };
+  // }, [activeChatId, socket]);
+
   useEffect(() => {
-    if (!activeChatId) return;
-
-    const handleNewMessage = (message: Message) => {
-      console.log("new-message");
-      setMessages((prev) =>
-        message.chatId === activeChatId ? [...prev, message] : prev
+    const handleResetUnreadCount = (event: CustomEvent<{ chatId: string }>) => {
+      const chatId = event.detail.chatId;
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === chatId ? { ...chat, unreadCount: 0 } : chat
+        )
       );
+    };
 
-      setChats((prevChats) => {
-        const normalizedLastMessage = normalizeMessage(message);
+    window.addEventListener(
+      "reset-unread-count",
+      handleResetUnreadCount as EventListener
+    );
 
-        return prevChats
+    return () => {
+      window.removeEventListener(
+        "reset-unread-count",
+        handleResetUnreadCount as EventListener
+      );
+    };
+  }, []);
+
+  // handle New Message
+  useEffect(() => {
+    const handleNewMessage = (message: Message) => {
+      setChats((prev) =>
+        prev
           .map((chat) =>
             chat.id === message.chatId
               ? {
                   ...chat,
-                  lastMessage: normalizedLastMessage,
-                  updatedAt: normalizedLastMessage.createdAt,
+                  lastMessage: normalizeMessage(message),
+                  unreadCount: chat.id === activeChatId ? 0 : chat.unreadCount,
+                  updatedAt: message.createdAt,
                 }
               : chat
           )
-          .sort(
-            (a, b) =>
-              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          );
-      });
+          .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
+      );
+
+      if (message.chatId === activeChatId) {
+        setMessages((prev) => [...prev, message]);
+
+        // 👇 auto mark read if chat is open
+        if (message.senderId !== session?.user?.id) {
+          socket.emit("mark-as-read", { chatId: message.chatId });
+        }
+      }
     };
 
     socket.on("new-message", handleNewMessage);
     return () => {
       socket.off("new-message", handleNewMessage);
     };
-  }, [activeChatId]);
+  }, [socket, activeChatId, session?.user?.id]);
+
+  useEffect(() => {
+    const handleMessagesRead = ({
+      chatId,
+      readerId,
+      readAt,
+    }: {
+      chatId: string;
+      readerId: string;
+      readAt: string;
+    }) => {
+      // Ignore my own read event
+      if (readerId === session?.user?.id) return;
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.chatId === chatId &&
+          msg.senderId === session?.user?.id &&
+          msg.readAt === null
+            ? { ...msg, readAt: new Date(readAt) }
+            : msg
+        )
+      );
+    };
+
+    socket.on("messages-read", handleMessagesRead);
+    return () => {
+      socket.off("messages-read", handleMessagesRead);
+    };
+  }, [socket, session?.user?.id]);
+
+  // handle Chat Updated
+  useEffect(() => {
+    const handleChatUpdated = ({
+      chatId,
+      lastMessage,
+      incrementUnread,
+    }: {
+      chatId: string;
+      lastMessage: Message;
+      incrementUnread: boolean;
+    }) => {
+      setChats((prev) =>
+        prev
+          .map((chat) =>
+            chat.id === chatId
+              ? {
+                  ...chat,
+                  lastMessage: normalizeMessage(lastMessage),
+                  unreadCount:
+                    chat.id === activeChatId
+                      ? 0
+                      : incrementUnread
+                      ? (chat.unreadCount || 0) + 1
+                      : chat.unreadCount,
+                  updatedAt: lastMessage?.createdAt || chat.updatedAt,
+                }
+              : chat
+          )
+          .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
+      );
+    };
+    socket.on("chat-updated", handleChatUpdated);
+
+    return () => {
+      socket.off("chat-updated", handleChatUpdated);
+    };
+  }, [socket, activeChatId]);
 
   // handle Create Chat mode
   useEffect(() => {
@@ -283,7 +417,7 @@ export default function MainContainer({ className }: ContainerProps) {
     }
   }, []);
 
-  // handle Chat Select
+  // handle Chat Select from chat list
   const handleChatSelect = useCallback(
     async (chat: ChatUI) => {
       const opened: OpenedChatFromList = {
@@ -299,51 +433,56 @@ export default function MainContainer({ className }: ContainerProps) {
       setOpenedChat(opened);
       setMainView("CHAT");
       setActiveChatId(chat.id);
-      await fetchMessages(chat.id);
       setIsMobileChatOpen(true);
       if (chat.participants?.length) {
         setChatParticipantsMap((prev) => ({
           ...prev,
           [chat.id]: mapParticipants(chat.participants),
         }));
+        await fetchMessages(chat.id);
       }
     },
-    [fetchMessages]
+    [fetchMessages, mapParticipants]
   );
 
-  const handleChatFetched = (result: ChatFetchResult) => {
-    if (result.type === "NOT_FOUND") {
-      setOpenedChat(null);
-      setMessages([]);
+  // handle Chat Fetched
+  const handleChatFetched = useCallback(
+    (result: ChatFetchResult) => {
+      if (result.type === "NOT_FOUND") {
+        setOpenedChat(null);
+        setMessages([]);
+        setMainView("CREATE_CHAT");
+        setParticipants(result.participants);
+        return;
+      }
+
+      const chat = result.chat;
+
+      const opened: OpenedChatFromList = {
+        source: "CHAT_LIST",
+        chatId: chat.id,
+        header: {
+          name: chat.chatName,
+          avatar: chat.avatar,
+          isGroup: chat.isGroup,
+        },
+      };
+
+      setOpenedChat(opened);
+      setMessages((chat.messages as unknown as Message[]) || []);
       setMainView("CREATE_CHAT");
-      setParticipants(result.participants);
-      return;
-    }
+      setActiveChatId(chat.id);
+      setIsMobileChatOpen(true);
+      setChatParticipantsMap((prev) => ({
+        ...prev,
+        [chat.id]: mapParticipants(chat.participants),
+      }));
+      setParticipants(chat.participants.map((p) => p.userId));
+    },
+    [mapParticipants]
+  );
 
-    const chat = result.chat;
-
-    const opened: OpenedChatFromList = {
-      source: "CHAT_LIST",
-      chatId: chat.id,
-      header: {
-        name: chat.chatName,
-        avatar: chat.avatar,
-        isGroup: chat.isGroup,
-      },
-    };
-
-    setOpenedChat(opened);
-    setMessages((chat.messages as unknown as Message[]) || []);
-    setMainView("CREATE_CHAT");
-    setActiveChatId(chat.id);
-    setIsMobileChatOpen(true);
-    setChatParticipantsMap((prev) => ({
-      ...prev,
-      [chat.id]: mapParticipants(chat.participants),
-    }));
-    setParticipants(chat.participants.map((p) => p.userId));
-  };
-
+  // handle Start Chatting
   const handleStartChatting = async (participants: string[]) => {
     const result = await createChat(participants);
     const chat = result.data;

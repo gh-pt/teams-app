@@ -42,10 +42,12 @@ model Chat {
 }
 
 model ChatParticipant {
-  id       String   @id @default(uuid())
-  userId   String
-  chatId   String
-  joinedAt DateTime @default(now())
+  id          String    @id @default(uuid())
+  userId      String
+  chatId      String
+  joinedAt    DateTime  @default(now())
+  unreadCount Int       @default(0)
+  lastReadAt  DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
@@ -60,6 +62,7 @@ model Message {
   content     String
   contentType ContentType @default(TEXT)
   fileUrl     String?
+  readAt      DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
