@@ -19,7 +19,7 @@ export default function MainSideBar() {
           </button>
         </div>
       </Tooltip>
-      <Tooltip
+      {/* <Tooltip
         content="Chat"
         placement="right"
         className="bg-[#1F1F1F] rounded-lg"
@@ -39,7 +39,7 @@ export default function MainSideBar() {
             </div>
           </button>
         </div>
-      </Tooltip>
+      </Tooltip> */}
     </div>
   );
 }
