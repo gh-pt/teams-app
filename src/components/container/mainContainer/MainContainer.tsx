@@ -35,7 +35,6 @@ export default function MainContainer({ className }: ContainerProps) {
   >({});
   const socket = useMemo(() => getSocket(), []);
 
-  // Map Participants
   const mapParticipants = useCallback(
     (participants?: ChatParticipantWithUser[]) => {
       if (!participants?.length) return {};
@@ -47,7 +46,6 @@ export default function MainContainer({ className }: ContainerProps) {
     []
   );
 
-  // Normalize Chat for List
   const normalizeChatForList = useCallback(
     (chat: PrismaChat): ChatUI => ({
       id: chat.id,
@@ -74,7 +72,6 @@ export default function MainContainer({ className }: ContainerProps) {
     [session?.user?.id]
   );
 
-  // join user
   useEffect(() => {
     if (!session?.user?.id) return;
 
@@ -85,7 +82,7 @@ export default function MainContainer({ className }: ContainerProps) {
     };
   }, [session?.user?.id, socket]);
 
-  // handle new chat created
+  // new chat created
   useEffect(() => {
     if (!session?.user?.id) return;
 
@@ -107,7 +104,6 @@ export default function MainContainer({ className }: ContainerProps) {
     };
   }, [session?.user?.id, normalizeChatForList, socket]);
 
-  // Fetch User's Chats
   useEffect(() => {
     const fetchChats = async () => {
       if (!session?.user?.id) return;
@@ -138,7 +134,6 @@ export default function MainContainer({ className }: ContainerProps) {
     fetchChats();
   }, [session?.user?.id, status]);
 
-  // Create Chat
   async function createChat(data: string[]) {
     try {
       const response = await fetch("/api/chat", {
@@ -161,7 +156,7 @@ export default function MainContainer({ className }: ContainerProps) {
     }
   }
 
-  // handle User Select from search
+  // select user from search
   useEffect(() => {
     const handleUserSelect = async (
       event: CustomEvent<{ id: string; name: string; image?: string }>
@@ -217,7 +212,7 @@ export default function MainContainer({ className }: ContainerProps) {
       );
   }, [session?.user?.id, normalizeChatForList, mapParticipants]);
 
-  // handle Reset Unread Count
+  // reset unread count
   useEffect(() => {
     const handleResetUnreadCount = (event: CustomEvent<{ chatId: string }>) => {
       const chatId = event.detail.chatId;
@@ -241,7 +236,7 @@ export default function MainContainer({ className }: ContainerProps) {
     };
   }, []);
 
-  // handle New Message
+  // new Message
   useEffect(() => {
     const handleNewMessage = (message: Message) => {
       setChats((prev) =>
@@ -262,7 +257,6 @@ export default function MainContainer({ className }: ContainerProps) {
       if (message.chatId === activeChatId) {
         setMessages((prev) => [...prev, message]);
 
-        // 👇 auto mark read if chat is open
         if (message.senderId !== session?.user?.id) {
           socket.emit("mark-as-read", { chatId: message.chatId });
         }
@@ -275,7 +269,7 @@ export default function MainContainer({ className }: ContainerProps) {
     };
   }, [socket, activeChatId, session?.user?.id]);
 
-  // handle Messages Read
+  // messages read
   useEffect(() => {
     const handleMessagesRead = ({
       chatId,
@@ -286,7 +280,6 @@ export default function MainContainer({ className }: ContainerProps) {
       readerId: string;
       readAt: string;
     }) => {
-      // Ignore my own read event
       if (readerId === session?.user?.id) return;
 
       setMessages((prev) =>
@@ -306,7 +299,7 @@ export default function MainContainer({ className }: ContainerProps) {
     };
   }, [socket, session?.user?.id]);
 
-  // handle Chat Updated
+  // chat updated
   useEffect(() => {
     const handleChatUpdated = ({
       chatId,
@@ -344,7 +337,7 @@ export default function MainContainer({ className }: ContainerProps) {
     };
   }, [socket, activeChatId]);
 
-  // handle Create Chat mode
+  // create-chat mode
   useEffect(() => {
     const handleCreateChat = (event: CustomEvent<{ userId: string }>) => {
       setOpenedChat(null);
@@ -366,7 +359,6 @@ export default function MainContainer({ className }: ContainerProps) {
     };
   }, []);
 
-  // fetch messages
   const fetchMessages = useCallback(async (chatId: string) => {
     try {
       const response = await fetch(`/api/chat/${chatId}/messages`);
@@ -382,7 +374,7 @@ export default function MainContainer({ className }: ContainerProps) {
     }
   }, []);
 
-  // handle Chat Select from chat list
+  // chat select from chat list
   const handleChatSelect = useCallback(
     async (chat: ChatUI) => {
       const opened: OpenedChatFromList = {
@@ -410,7 +402,7 @@ export default function MainContainer({ className }: ContainerProps) {
     [fetchMessages, mapParticipants]
   );
 
-  // handle Chat Fetched
+  // chat Fetched
   const handleChatFetched = useCallback(
     (result: ChatFetchResult) => {
       if (result.type === "NOT_FOUND") {
@@ -447,7 +439,7 @@ export default function MainContainer({ className }: ContainerProps) {
     [mapParticipants]
   );
 
-  // handle Start Chatting
+  // start chatting
   const handleStartChatting = async (participants: string[]) => {
     const result = await createChat(participants);
     const chat = result.data;

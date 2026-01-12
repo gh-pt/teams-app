@@ -29,7 +29,7 @@ export default function ChatInfo({
     mode === "CREATE_CHAT" || (mode === "CHAT" && !!openedChat);
   const socket = useMemo(() => getSocket(), []);
 
-  // Socket connection for CHAT mode
+  // socket connection
   useEffect(() => {
     if (mode !== "CHAT" || !openedChat) return;
 
@@ -58,7 +58,7 @@ export default function ChatInfo({
     };
   }, [openedChat, socket]);
 
-  // Update typing text
+
   const updateTypingText = useCallback(() => {
     if (!openedChat) {
       setTypingText("");
@@ -90,7 +90,6 @@ export default function ChatInfo({
     }
   }, [openedChat, chatParticipants]);
 
-  // Typing indicators for CHAT mode
   useEffect(() => {
     if (mode !== "CHAT" || !openedChat) return;
 
@@ -123,12 +122,11 @@ export default function ChatInfo({
     updateTypingText,
   ]);
 
-  // auto scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Adjust textarea height
+
   const adjustTextareaHeight = useCallback(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "45px";
@@ -137,7 +135,6 @@ export default function ChatInfo({
     }
   }, []);
 
-  // Handle textarea change
   const handleTextareaChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
       setTextareaValue(event.target.value);
@@ -159,7 +156,6 @@ export default function ChatInfo({
     [mode, openedChat, adjustTextareaHeight]
   );
 
-  // Handle input focus
   const handleInputFocus = async () => {
     if (mode === "CREATE_CHAT") {
       onStartChatting(participants || []);
@@ -182,7 +178,6 @@ export default function ChatInfo({
     textareaRef.current!.style.height = "45px";
   }, [textareaValue, openedChat, socket]);
 
-  // Handle keydown
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -193,7 +188,6 @@ export default function ChatInfo({
     [handleSend]
   );
 
-  // Check if message is mine
   const isMine = session?.user?.id;
 
   const renderedMessages = useMemo(() => {
@@ -225,7 +219,6 @@ export default function ChatInfo({
 
   return (
     <div className="h-full w-full bg-[#292929] rounded-lg flex flex-col">
-      {/* Header based on mode */}
       {mode === "CREATE_CHAT" ? (
         <CreateChatHeader
           onBack={onBack}
@@ -242,19 +235,16 @@ export default function ChatInfo({
         ""
       )}
 
-      {/* Empty state */}
       {!shouldShowChatUI && (
-        <div className="flex-1 hidden md:flex items-center justify-center text-gray-400">
+        <div className="flex-1 hidden sm:flex items-center justify-center text-gray-400">
           <div className="text-center">
             <p className="text-lg">Select a chat to start Conversation</p>
           </div>
         </div>
       )}
 
-      {/* Messages + Input */}
       {shouldShowChatUI && (
         <div className="h-[calc(100%-61px)] w-full flex flex-col">
-          {/* Messages */}
           <div className="flex-1 p-4 overflow-y-auto space-y-2 custom-scrollbar">
             {messages.length === 0 ? (
               <div className="h-full flex items-center justify-center text-gray-500 text-sm">
@@ -268,7 +258,6 @@ export default function ChatInfo({
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
           <div className="p-2">
             <div className="ChatInput border-2 border-[#3F3F3F] rounded-lg flex items-center gap-2 px-2 py-1 bg-[#1F1F1F]">
               <textarea

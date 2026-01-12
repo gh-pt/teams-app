@@ -37,7 +37,6 @@ export default function ChatHeader({
         </div>
         <BsThreeDots className="cursor-pointer hover:text-[#7F85F5]" />
       </div>
-      {/* Typing indicator */}
       <div className="w-full h-[10px] px-4 text-[8px] text-gray-400 italic">
         {typingText}
       </div>

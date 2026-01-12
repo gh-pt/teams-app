@@ -29,7 +29,6 @@ app.prepare().then(() => {
 
   global.io = io;
 
-  // Socket auth
   io.use(async (socket, next) => {
     const token = await getToken({
       req: socket.request as unknown as Request,
@@ -47,20 +46,20 @@ app.prepare().then(() => {
   io.on("connection", (socket) => {
     console.log("User connected:", socket.data.userId);
 
-    // Join user-level room (for notifications)
+    // Join user
     socket.on("join-user", () => {
       const userId = socket.data.userId;
       socket.join(`user:${userId}`);
       console.log(`User ${userId} joined user room`);
     });
 
-    // Join chat room
+    // Join chat
     socket.on("join-chat", (chatId: string) => {
       console.log(`User ${socket.data.userId} joined chat: ${chatId}`);
       socket.join(`chat:${chatId}`);
     });
 
-    // Leave chat room
+    // Leave chat
     socket.on("leave-chat", (chatId: string) => {
       if (!chatId) return;
 
@@ -77,7 +76,6 @@ app.prepare().then(() => {
 
         if (!chatId || !content?.trim()) return;
 
-        // Check membership
         const isMember = await prisma.chatParticipant.findFirst({
           where: {
             chatId,
@@ -90,7 +88,6 @@ app.prepare().then(() => {
           return;
         }
 
-        // Save message in DB
         const message = await prisma.message.create({
           data: {
             chatId,
@@ -117,10 +114,8 @@ app.prepare().then(() => {
           },
         });
 
-        // Emit to everyone in the room
         io.to(`chat:${chatId}`).emit("new-message", message);
 
-        // 🔹 Emit sidebar notification to ALL other users
         message.chat.participants
           .filter((p) => p.userId !== senderId)
           .forEach((p) => {
@@ -139,7 +134,6 @@ app.prepare().then(() => {
     socket.on("mark-as-read", async ({ chatId }) => {
       const userId = socket.data.userId;
 
-      // 1️⃣ Update unread messages
       await prisma.message.updateMany({
         where: {
           chatId,
@@ -151,7 +145,6 @@ app.prepare().then(() => {
         },
       });
 
-      // 2️⃣ Reset unreadCount
       await prisma.chatParticipant.update({
         where: {
           userId_chatId: {
@@ -165,7 +158,6 @@ app.prepare().then(() => {
         },
       });
 
-      // 3️⃣ Notify others (optional – read receipts)
       socket.to(`chat:${chatId}`).emit("messages-read", {
         chatId,
         readerId: userId,
