@@ -161,7 +161,7 @@ export default function MainContainer({ className }: ContainerProps) {
     }
   }
 
-  // handle User Select
+  // handle User Select from search
   useEffect(() => {
     const handleUserSelect = async (
       event: CustomEvent<{ id: string; name: string; image?: string }>
@@ -217,44 +217,7 @@ export default function MainContainer({ className }: ContainerProps) {
       );
   }, [session?.user?.id, normalizeChatForList, mapParticipants]);
 
-
-  // useEffect(() => {
-  //   if (!activeChatId) return;
-
-  //   const handleNewMessage = (message: Message) => {
-  //     console.log("new-message");
-  //     // setMessages((prev) =>
-  //     //   message.chatId === activeChatId ? [...prev, message] : prev
-  //     // );
-
-  //     setMessages((prev) => [...prev, message]);
-
-  //     setChats((prevChats) => {
-  //       const normalizedLastMessage = normalizeMessage(message);
-
-  //       return prevChats
-  //         .map((chat) =>
-  //           chat.id === message.chatId
-  //             ? {
-  //                 ...chat,
-  //                 lastMessage: normalizedLastMessage,
-  //                 updatedAt: normalizedLastMessage.createdAt,
-  //               }
-  //             : chat
-  //         )
-  //         .sort(
-  //           (a, b) =>
-  //             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-  //         );
-  //     });
-  //   };
-
-  //   socket.on("new-message", handleNewMessage);
-  //   return () => {
-  //     socket.off("new-message", handleNewMessage);
-  //   };
-  // }, [activeChatId, socket]);
-
+  // handle Reset Unread Count
   useEffect(() => {
     const handleResetUnreadCount = (event: CustomEvent<{ chatId: string }>) => {
       const chatId = event.detail.chatId;
@@ -312,6 +275,7 @@ export default function MainContainer({ className }: ContainerProps) {
     };
   }, [socket, activeChatId, session?.user?.id]);
 
+  // handle Messages Read
   useEffect(() => {
     const handleMessagesRead = ({
       chatId,
@@ -402,6 +366,7 @@ export default function MainContainer({ className }: ContainerProps) {
     };
   }, []);
 
+  // fetch messages
   const fetchMessages = useCallback(async (chatId: string) => {
     try {
       const response = await fetch(`/api/chat/${chatId}/messages`);
