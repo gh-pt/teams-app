@@ -1,6 +1,6 @@
 import { PiChatCircleTextFill } from "react-icons/pi";
 import { Tooltip } from "@heroui/tooltip";
-import { HiMiniVideoCamera, HiOutlineVideoCamera } from "react-icons/hi2";
+// import { HiMiniVideoCamera, HiOutlineVideoCamera } from "react-icons/hi2";
 
 export default function MainSideBar() {
   return (

@@ -48,15 +48,15 @@ export default memo(function MainContainerSideBar({
           Chat
         </div>
         <div className="w-full h-full flex items-center justify-end gap-2">
-          <Tooltip content="Filter" className="bg-[#1F1F1F] rounded-lg">
+          {/* <Tooltip content="Filter" className="bg-[#1F1F1F] rounded-lg">
             <button className="group w-[32px] h-[32px] rounded-lg bg-[#1F1F1F] grid place-items-center cursor-pointer transition-all duration-200 hover:shadow-[-2px_2px_10px_rgba(127,133,245,0.5)] hover:border-[#7F85F5]/30">
               <IoFilter
                 size={18}
                 className="group-hover:text-[#7F85F5] transition-colors duration-200"
               />
             </button>
-          </Tooltip>
-          <Tooltip content="Meet now" className="bg-[#1F1F1F] rounded-lg">
+          </Tooltip> */}
+          {/* <Tooltip content="Meet now" className="bg-[#1F1F1F] rounded-lg">
             <button className="group w-[32px] h-[32px] rounded-lg bg-[#1F1F1F] grid place-items-center cursor-pointer transition-all duration-200 hover:shadow-[-2px_2px_10px_rgba(127,133,245,0.5)] hover:border-[#7F85F5]/30">
               <HiOutlineVideoCamera
                 size={18}
@@ -67,7 +67,7 @@ export default memo(function MainContainerSideBar({
                 className="hidden group-hover:block text-[#7F85F5] transition-colors duration-200"
               />
             </button>
-          </Tooltip>
+          </Tooltip> */}
           <Tooltip content="Edit" className="bg-[#1F1F1F] rounded-lg">
             <button className="group w-[32px] h-[32px] rounded-lg bg-[#1F1F1F] grid place-items-center cursor-pointer transition-all duration-300 hover:shadow-[-2px_2px_10px_rgba(127,133,245,0.5)] hover:border-[#7F85F5]/30">
               <RiEditBoxLine

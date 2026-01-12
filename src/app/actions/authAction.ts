@@ -1,10 +1,12 @@
 "use server";
 
 import { signIn } from "@/auth";
-import { User } from "@/generated/prisma";
+import { User } from "@/generated/prisma/client";
+import { sendVerificationMail } from "@/lib/mail";
 import prisma from "@/lib/prisma";
 import { loginSchema, LoginSchema } from "@/lib/schemas/loginSchema";
 import { signupSchema, SignupSchema } from "@/lib/schemas/signupSchema";
+import { generateToken } from "@/lib/token";
 import { ActionResult } from "@/types";
 import bcrypt from "bcryptjs";
 import { AuthError } from "next-auth";
@@ -61,6 +63,10 @@ export async function registerUser(
         avatar: avatars[Math.floor(Math.random() * avatars.length)],
       },
     });
+
+    const verificationToken = await generateToken(email);
+    await sendVerificationMail(email, verificationToken.token);
+
     return { status: "success", data: user };
   } catch (error) {
     console.log(error);
@@ -81,6 +87,20 @@ export async function loginUser(
   }
 
   try {
+    const existingUser = await getUserByEmail(validated.data.email);
+
+    if (!existingUser) {
+      return { status: "error", error: "User not found" };
+    }
+
+    if (!existingUser.emailVerified) {
+      const verificationToken = await generateToken(existingUser.email);
+      console.log(
+        await sendVerificationMail(existingUser.email, verificationToken.token)
+      );
+      return { status: "error", error: "Please verify your email address" };
+    }
+
     await signIn("credentials", {
       email: validated.data.email,
       password: validated.data.password,
@@ -93,15 +113,22 @@ export async function loginUser(
     };
   } catch (error) {
     if (error instanceof AuthError) {
-      return {
-        status: "error",
-        error: "Invalid credentials",
-      };
+      switch (error.type) {
+        case "CredentialsSignin":
+          return {
+            status: "error",
+            error: "Invalid credentials",
+          };
+        default:
+          return {
+            status: "error",
+            error: "Something went wrong",
+          };
+      }
     }
-
     return {
       status: "error",
-      error: "Something went wrong",
+      error: "Something else went wrong",
     };
   }
 }
@@ -123,19 +150,82 @@ export async function getUserByEmail(email: string) {
   }
 }
 
-export async function getUserById(id: string) {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id },
+type VerifyEmailResult = {
+  message: string;
+};
+
+export async function verifyEmailAction(
+  token: string | null
+): Promise<ActionResult<VerifyEmailResult>> {
+  if (!token) {
+    return {
+      status: "error",
+      error: "Verification token is missing.",
+    };
+  }
+
+  const verificationToken = await prisma.token.findFirst({
+    where: { token },
+  });
+
+  if (!verificationToken) {
+    return {
+      status: "error",
+      error: "Invalid verification token.",
+    };
+  }
+
+  if (verificationToken.expires <= new Date()) {
+    await prisma.token.delete({
+      where: { id: verificationToken.id },
     });
 
-    if (!user) {
-      return null;
-    }
-
-    return user;
-  } catch (error) {
-    console.log(error);
-    return null;
+    return {
+      status: "error",
+      error: "Verification token has expired. Please request a new one.",
+    };
   }
+
+  const user = await prisma.user.findUnique({
+    where: { email: verificationToken.email },
+  });
+
+  if (!user) {
+    await prisma.token.delete({
+      where: { id: verificationToken.id },
+    });
+
+    return {
+      status: "error",
+      error: "User not found.",
+    };
+  }
+
+  if (user.emailVerified) {
+    await prisma.token.delete({
+      where: { id: verificationToken.id },
+    });
+
+    return {
+      status: "error",
+      error: "Your email is already verified.",
+    };
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { email: user.email },
+      data: { emailVerified: new Date() },
+    }),
+    prisma.token.delete({
+      where: { id: verificationToken.id },
+    }),
+  ]);
+
+  return {
+    status: "success",
+    data: {
+      message: "Your email has been verified successfully.",
+    },
+  };
 }
