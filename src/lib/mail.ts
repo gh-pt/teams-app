@@ -1,4 +1,7 @@
 import nodemailer, { TransportOptions } from "nodemailer";
+import { headers } from "next/headers";
+
+const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
 
 export const TRANSPORTER = {
   host: process.env.SMTP_HOST!,
@@ -38,7 +41,9 @@ export const sendMail = async (
 };
 
 export async function sendVerificationMail(email: string, token: string) {
-  const link = `http://localhost:3000/verify-email?token=${token}`;
+  const headersList = await headers();
+  const host = headersList.get("host");
+  const link = `${protocol}://${host}/verify-email?token=${token}`;
 
   const html = `
     <div style="font-family: Arial, sans-serif; background-color: #f9fafb; padding: 40px;">
