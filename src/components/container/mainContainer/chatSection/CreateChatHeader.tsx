@@ -79,7 +79,7 @@ export default function CreateChatHeader({
     unreadCount: chat.participants.find((p: ChatParticipant) => p.userId === sessionUserId)?.unreadCount ?? 0,
   });
 
-  // run chat search
+
   const runChatSearch = async (userIds: string[]) => {
     if (userIds.length < 2) {
       onChatFetched?.({
@@ -120,7 +120,6 @@ export default function CreateChatHeader({
     inputRef.current?.focus();
   };
 
-  // Remove user from selected users
   const removeUser = (id: string) => {
     const updatedUsers = selectedUsers.filter((u) => u.id !== id);
     setSelectedUsers(updatedUsers);
@@ -142,7 +141,6 @@ export default function CreateChatHeader({
       >
         <span className="text-sm text-gray-400">To:</span>
 
-        {/* Selected Users (Chips) */}
         {selectedUsers.map((user) => (
           <div
             key={user.id}
@@ -159,7 +157,6 @@ export default function CreateChatHeader({
           </div>
         ))}
 
-        {/* Input */}
         <input
           ref={inputRef}
           value={query}
@@ -171,7 +168,6 @@ export default function CreateChatHeader({
         />
       </div>
 
-      {/* Dropdown */}
       {isSearchFocused && (
         <div className="absolute top-[70px] left-1/2 -translate-x-1/2 w-full max-w-[774px]  bg-[#292929] border border-[#3F3F3F] rounded-lg shadow-xl z-50">
           {loading ? (

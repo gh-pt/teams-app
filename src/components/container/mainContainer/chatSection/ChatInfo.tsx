@@ -40,7 +40,7 @@ export default function ChatInfo({
     };
   }, [mode, openedChat?.chatId, socket, openedChat]);
 
-  // Mark messages as read
+  // messages as read
   useEffect(() => {
     if (!openedChat) return;
 
@@ -74,13 +74,12 @@ export default function ChatInfo({
       return;
     }
 
-    // One-to-one chat
     if (!openedChat.header.isGroup) {
       setTypingText(`${openedChat.header.name} is typing…`);
       return;
     }
 
-    // Group chat
+    
     if (names.length === 1) {
       setTypingText(`${names[0]} is typing…`);
     } else if (names.length <= 3) {
@@ -198,7 +197,7 @@ export default function ChatInfo({
       return (
         <div
           key={msg.id}
-          className={`w-fit min-w-[50px] max-w-[70%] p-2 rounded-md flex flex-col gap-0.5 ${
+          className={`w-fit min-w-12.5 max-w-[70%] p-2 rounded-md flex flex-col gap-0.5 ${
             msg.senderId === isMine
               ? "ml-auto bg-blue-500 text-white"
               : "bg-gray-700 text-white"
